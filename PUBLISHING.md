@@ -1,7 +1,7 @@
 # Publishing this article
 
-The public article is hosted at https://maceip.github.io/attesting-muse-tee/ from
-https://github.com/maceip/attesting-muse-tee.
+The public article is hosted at https://maceip.github.io/tee-skills/ from
+https://github.com/maceip/tee-skills.
 
 Pushing `main` runs `.github/workflows/pages.yml`: validate local resources and
 metadata, check synchronized skills, stage static assets, package the downloadable

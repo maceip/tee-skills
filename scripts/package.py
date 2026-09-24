@@ -45,7 +45,7 @@ In Cursor, ask Agent to use the named skill.
 
 Edit canonical files under .agents/skills/, then run python3 scripts/sync_skills.py
 to update the Claude/Grok copies. The article and its check script are in the app:
-https://github.com/maceip/attesting-muse-tee
+https://github.com/maceip/tee-skills
 
 The skills are review instructions, not a hardware attestation implementation.
 """)

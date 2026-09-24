@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-PUBLIC_URL = "https://maceip.github.io/attesting-muse-tee/"
+PUBLIC_URL = "https://maceip.github.io/tee-skills/"
 
 
 def require(condition, message):
