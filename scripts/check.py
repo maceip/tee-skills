@@ -10,12 +10,31 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-PUBLIC_URL = "https://maceip.github.io/tee-skills/"
+PUBLIC_URL = "https://tee.public.computer/"
 
 
 def require(condition, message):
     if not condition:
         raise SystemExit(message)
+
+
+def jpeg_dimensions(data):
+    require(data.startswith(b"\xff\xd8") and data.endswith(b"\xff\xd9"),
+            "Social image is not a complete JPEG")
+    offset = 2
+    while offset + 4 <= len(data):
+        require(data[offset] == 0xFF, "Invalid JPEG segment")
+        marker = data[offset + 1]
+        length = int.from_bytes(data[offset + 2:offset + 4], "big")
+        require(length >= 2 and offset + 2 + length <= len(data), "Invalid JPEG segment length")
+        if marker in (0xC0, 0xC2):  # Baseline or progressive frame.
+            require(length >= 8, "Truncated JPEG frame")
+            height, width = struct.unpack(">HH", data[offset + 5:offset + 9])
+            return width, height
+        if marker == 0xDA:  # Scan data must follow the frame header.
+            break
+        offset += 2 + length
+    raise SystemExit("Missing JPEG frame dimensions")
 
 
 class Page(HTMLParser):
@@ -68,20 +87,27 @@ for value in re.findall(r"url\(['\"]?([^)'\"]+)", (ROOT / "assets/article.css").
     check_resource(value, ROOT / "assets")
 require(page.canonicals == [PUBLIC_URL], "Canonical URL differs from publication URL")
 require(page.meta.get("og:url") == [PUBLIC_URL], "og:url differs from canonical")
-image_url = PUBLIC_URL + "img/social-preview.png"
+image_url = PUBLIC_URL + "img/social-preview.jpg"
 for key in ("og:image", "og:image:secure_url", "twitter:image"):
     require(page.meta.get(key) == [image_url], f"Unexpected {key}")
 for key in ("og:title", "og:description", "og:type", "og:locale", "og:image:alt", "twitter:image:alt"):
     require(len(page.meta.get(key, [])) == 1 and page.meta[key][0], f"Missing or duplicate {key}")
 require(page.meta.get("twitter:card") == ["summary_large_image"], "Wrong X card type")
-png = (ROOT / "img/social-preview.png").read_bytes()
-require(png[:8] == b"\x89PNG\r\n\x1a\n", "Social image is not PNG")
-width, height = struct.unpack(">II", png[16:24])
+jpeg = (ROOT / "img/social-preview.jpg").read_bytes()
+require(len(jpeg) <= 300_000, "Social image exceeds the project's 300 KB preview budget")
+width, height = jpeg_dimensions(jpeg)
+require((width, height) == (1200, 630), "Unexpected social preview dimensions")
+require(page.meta.get("og:image:type") == ["image/jpeg"], "Wrong social image MIME type")
 require(page.meta.get("og:image:width") == [str(width)], "Wrong image width")
 require(page.meta.get("og:image:height") == [str(height)], "Wrong image height")
+for suffix in ("title", "description", "image:alt"):
+    require(page.meta.get(f"twitter:{suffix}") == page.meta.get(f"og:{suffix}"),
+            f"Social {suffix} differs between Open Graph and X")
 schema = json.loads(re.search(r'<script type="application/ld\+json">(.*?)</script>', html, re.S).group(1))
 require(schema["url"] == PUBLIC_URL and schema["mainEntityOfPage"]["@id"] == PUBLIC_URL, "Wrong article identity")
+require(schema["@id"] == PUBLIC_URL + "#article", "Wrong structured article ID")
 require(schema["image"]["url"] == schema["image"]["contentUrl"] == image_url, "Wrong structured image URL")
+require(schema["image"]["encodingFormat"] == "image/jpeg", "Wrong structured image MIME type")
 require((schema["image"]["width"], schema["image"]["height"]) == (width, height), "Wrong structured image size")
 for skill in (ROOT / ".agents/skills").iterdir():
     entry = skill / "SKILL.md"

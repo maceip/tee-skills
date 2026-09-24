@@ -1,7 +1,14 @@
 # Publishing this article
 
-The public article is hosted at https://maceip.github.io/tee-skills/ from
+The public article is hosted at https://tee.public.computer/ from
 https://github.com/maceip/tee-skills.
+
+The DNS CNAME for `tee.public.computer` points directly to `maceip.github.io`.
+GitHub Pages has `tee.public.computer` configured as its custom domain with
+**Enforce HTTPS** enabled. The previous `https://maceip.github.io/tee-skills/`
+address redirects to the custom domain. DNS itself is not an HTTP redirect.
+This project deploys through Actions, so GitHub manages the custom domain in
+Pages settings; a repository `CNAME` file is not required.
 
 Pushing `main` runs `.github/workflows/pages.yml`: validate local resources and
 metadata, check synchronized skills, stage static assets, package the downloadable
@@ -26,8 +33,11 @@ full-resolution artwork is included alongside smaller WebP sources. The browser
 selects a suitable source for each screen.
 
 Open Graph, X cards, and Article JSON-LD reference the public HTTPS article URL and
-`img/social-preview.png` (2192 × 1152). The supplied artwork is unchanged, with
-image dimensions and descriptive alt text. This metadata-only image adds no image
+`img/social-preview.jpg` (1200 × 630, approximately 119 KB). It uses the supplied
+artwork; the original `img/social-preview.png` remains available. The smaller
+JPEG is a baseline RGB image with dimensions and descriptive alt text, served
+directly over HTTPS without an image redirect. Checks enforce a project budget
+of 300 KB, not a claimed platform limit. This metadata-only image adds no image
 download to normal page rendering. If moving hosts, update the canonical link,
 `og:url`, social image URLs, JSON-LD article/image URLs, README links, and the
 publication URL in `scripts/check.py`. No author identity, social handle, or

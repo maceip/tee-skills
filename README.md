@@ -3,8 +3,8 @@
 An illustrated, interactive article about confidential virtual machines and remote
 attestation. Plain HTML, CSS, and JavaScript with local fonts and responsive artwork.
 
-- [Read the article](https://maceip.github.io/tee-skills/)
-- [Download the review skills](https://maceip.github.io/tee-skills/downloads/muse-review-skills.zip)
+- [Read the article](https://tee.public.computer/)
+- [Download the review skills](https://tee.public.computer/downloads/muse-review-skills.zip)
 
 ## Run locally
 
