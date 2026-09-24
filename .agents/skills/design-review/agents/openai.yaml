@@ -1,0 +1,4 @@
+interface:
+  display_name: "Article Design Review"
+  short_description: "Review article layout, access, and interactions"
+  default_prompt: "Use $design-review to review this article and fix issues while preserving its visual design."

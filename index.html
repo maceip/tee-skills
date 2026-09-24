@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en" prefix="og: https://ogp.me/ns# article: https://ogp.me/ns/article#">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>Attesting Muse's TEE</title>
+  <meta name="description" content="An illustrated guide to confidential virtual machines and remote attestation: memory isolation, launch measurements, signed reports, verification, and deployment pitfalls.">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+
+  <!-- Social sharing: common Open Graph properties and article topics. -->
+  <link rel="canonical" href="https://maceip.github.io/attesting-muse-tee/">
+  <meta property="og:url" content="https://maceip.github.io/attesting-muse-tee/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Attesting Muse's TEE">
+  <meta property="og:description" content="An illustrated guide to confidential virtual machines, remote attestation, and what a verifier must check.">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="https://maceip.github.io/attesting-muse-tee/img/social-preview.png">
+  <meta property="og:image:secure_url" content="https://maceip.github.io/attesting-muse-tee/img/social-preview.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="2192">
+  <meta property="og:image:height" content="1152">
+  <meta property="og:image:alt" content="A frustrated man at a laptop beside a surprised fluffy character wearing headphones, above the title Trusted Execution Environments.">
+  <meta property="article:section" content="Confidential computing">
+  <meta property="article:tag" content="Remote attestation">
+  <meta property="article:tag" content="Confidential computing">
+  <meta property="article:tag" content="Trusted execution environments">
+  <meta property="article:tag" content="AMD SEV-SNP">
+  <meta property="article:tag" content="Intel TDX">
+  <meta property="article:tag" content="Meta Muse">
+
+  <!-- X uses the twitter: namespace for its social cards. -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Attesting Muse's TEE">
+  <meta name="twitter:description" content="An illustrated guide to confidential virtual machines, remote attestation, and what a verifier must check.">
+  <meta name="twitter:image" content="https://maceip.github.io/attesting-muse-tee/img/social-preview.png">
+  <meta name="twitter:image:alt" content="A frustrated man at a laptop beside a surprised fluffy character wearing headphones, above the title Trusted Execution Environments.">
+
+  <meta name="theme-color" content="#FFFFFF">
+  <link rel="icon" type="image/webp" href="img/av-muse-v2.webp">
+  <link rel="preload" href="assets/fonts/nunito-variable-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="assets/article.css">
+  <script src="assets/article.js" defer></script>
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Attesting Muse's TEE",
+  "description": "An illustrated guide to confidential virtual machines and remote attestation: memory isolation, launch measurements, signed reports, verification, and deployment pitfalls.",
+  "inLanguage": "en-US",
+  "articleSection": "Confidential computing",
+  "isAccessibleForFree": true,
+  "keywords": [
+    "Remote attestation",
+    "Confidential computing",
+    "Trusted execution environments",
+    "AMD SEV-SNP",
+    "Intel TDX",
+    "Meta Muse"
+  ],
+  "about": [
+    {
+      "@type": "Thing",
+      "name": "Remote attestation"
+    },
+    {
+      "@type": "Thing",
+      "name": "Confidential virtual machines"
+    }
+  ],
+  "image": {
+    "@type": "ImageObject",
+    "url": "https://maceip.github.io/attesting-muse-tee/img/social-preview.png",
+    "contentUrl": "https://maceip.github.io/attesting-muse-tee/img/social-preview.png",
+    "encodingFormat": "image/png",
+    "width": 2192,
+    "height": 1152,
+    "caption": "Trusted Execution Environments",
+    "description": "A frustrated man at a laptop beside a surprised fluffy character wearing headphones, above the title Trusted Execution Environments."
+  },
+  "url": "https://maceip.github.io/attesting-muse-tee/",
+  "@id": "https://maceip.github.io/attesting-muse-tee/#article",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://maceip.github.io/attesting-muse-tee/"
+  }
+}
+  </script>
+</head>
+<body>
+<a class="skip-link" href="#main-content">Skip to article</a>
+<main id="main-content" tabindex="-1">
+<article class="page" aria-labelledby="article-title">
+
+
+<header class="hero">
+  <div class="hero-text">
+    <span class="pill"><i></i>Independent explainer · remote attestation for confidential virtual machines</span>
+    <h1 id="article-title">Attesting Muse's TEE</h1>
+    <p class="lede">This article explains remote attestation: how a trusted execution environment (TEE) proves to another machine exactly which code it launched. It walks through each step, from memory isolation and the launch measurement to the signed report and its verification, then covers the pitfalls that let the wrong build pass. Meta's Muse agent is the running example.</p>
+    <p class="lede">It's speculated that Meta's Confidential VM, the virtual machine (VM) Muse will run in, is built on a TEE of this kind. Meta says the whole VM, including your data and conversations, will be encrypted “with a key only they hold, so not even Meta can access it.” Remote attestation is how you would check a claim like that: the CPU measures what the TEE launched, signs that measurement with a key its vendor certifies, and you compare the result with a build you can reproduce.</p>
+  </div>
+  <figure class="hero-art">
+    <img src="img/muse-card.webp" width="1600" height="1067" alt="Illustration: Muse holding up a card labeled CVM measure (confidential VM measurement) 0xA7F3-9C2E-4B1D-8E60-F2A9-11C4, with a red wax seal." fetchpriority="high" srcset="img/muse-card-480.webp 480w, img/muse-card-800.webp 800w, img/muse-card.webp 1600w" sizes="(max-width: 900px) calc(100vw - 40px), (min-width: 1160px) 563px, calc((100vw - 76px) * 0.519231)">
+  </figure>
+</header>
+
+<section class="primer" aria-labelledby="p-h">
+  <div class="primer-head">
+    <p class="tag">Before the scenes · Trusted execution environments</p>
+    <h2 id="p-h">What a TEE is</h2>
+    <p class="narr">A <b>trusted execution environment (TEE)</b> is hardware-enforced isolation for code and data. On cloud servers today the TEE is usually a whole <b>confidential VM</b>: the CPU encrypts the VM's memory with keys held inside the processor and stops the hypervisor (the software layer that runs VMs) from reading or modifying it. The host still runs the VM, but its operating system (OS), hypervisor and administrators can't see inside. The CPU can also sign a statement of what the VM launched. That statement is an <b>attestation report</b>, and checking it from another machine is <b>remote attestation</b>.</p>
+  </div>
+
+  <article class="how" aria-labelledby="how-h">
+    <h3 class="tag" id="how-h">How remote attestation works</h3>
+    <ol>
+      <li><b>Isolate</b>The CPU encrypts the VM's memory with a per-VM key generated inside the processor, and blocks the hypervisor from reading or remapping those pages.<a href="#s3">Scene 03</a></li>
+      <li><b>Measure</b>While the VM is created, the CPU hashes its initial memory image (firmware, and often the kernel, the initial RAM disk or initrd, and the kernel command line) into a launch measurement.<a href="#s4">Scene 04</a></li>
+      <li><b>Report</b>On request, the CPU signs a report with the measurement, firmware version, launch policy and a nonce (a one-time random value) from the verifier, using a key the chip vendor certifies.<a href="#s5">Scene 05</a></li>
+      <li><b>Verify</b>The verifier checks the signature chain to the vendor's root, the nonce, the policy, and that the measurement equals a known build. Only then does it release secrets.<a href="#s6">Scene 06</a></li>
+    </ol>
+    <p class="also">Services run the same exchange with each other. A key management service can release a disk-decryption key only to a VM whose report verifies, and two TEEs can exchange reports before opening an encrypted channel (attested TLS, Transport Layer Security).</p>
+  </article>
+
+  <div class="primer-grid">
+    <article class="pbox tl">
+      <p class="tag">Where they came from</p>
+      <ul>
+        <li><span class="yr">2003</span><span>The first Trusted Platform Modules (TPMs), version 1.1b, ship in PCs and record each boot stage's hash in platform configuration registers (PCRs): measured boot.</span></li>
+        <li><span class="yr">2003</span><span>Arm announces TrustZone with the ARM1176JZ-S core, splitting a chip into a normal world and a secure world.</span></li>
+        <li><span class="yr">2013</span><span>Apple's Secure Enclave ships in the iPhone 5s to protect encryption keys and Touch ID data.</span></li>
+        <li><span class="yr">2015</span><span>Intel Software Guard Extensions (SGX) arrive with 6th-generation Core (Skylake) processors, adding enclaves inside a single process.</span></li>
+        <li><span class="yr">2017</span><span>AMD Secure Encrypted Virtualization (SEV) ships with the first EPYC server processors and encrypts each VM's memory.</span></li>
+        <li><span class="yr">2020</span><span>Amazon Web Services (AWS) makes Nitro Enclaves generally available.</span></li>
+        <li><span class="yr">2021</span><span>AMD adds SEV-SNP (Secure Nested Paging) with third-generation EPYC, which also protects memory integrity.</span></li>
+        <li><span class="yr">2023</span><span>Intel Trust Domain Extensions (TDX) launch with 4th-generation Xeon Scalable processors.</span></li>
+        <li><span class="yr">2023</span><span>NVIDIA opens early access to confidential computing on H100 GPUs, with general access in April 2024.</span></li>
+      </ul>
+    </article>
+    <article class="pbox">
+      <p class="tag">Why now</p>
+      <p>AI agents process some of the most sensitive data people have, on servers and GPUs the user doesn't control. A TEE lets an operator run that hardware without being able to read the workload, and attestation lets the user verify that from outside.</p>
+      <p><b>Building for TEEs used to be hard.</b> Intel SGX made developers split a program into a trusted enclave and an untrusted host, declare every call between the two in an interface file, and fit the enclave into about 128 MB of protected memory on early chips. Attestation ran through an Intel service that required registration, and side-channel attacks from Foreshadow (2018) to ÆPIC Leak (2022) kept forcing patches.</p>
+      <p><b>Crypto pushed the tooling forward.</b> Secret Network ran private smart contracts on SGX from 2020, and in 2022 researchers extracted its master decryption key through SGX flaws, making TEE security a public research topic. In 2024, Flashbots' BuilderNet moved Ethereum block building into TEEs, and TEE_HEE, from Nous Research and Flashbots, ran an AI agent whose passwords and wallet key never left an Intel TDX confidential VM. Along the way came open frameworks such as Dstack and on-chain verifiers for attestation reports.</p>
+      <p><b>Confidential VMs removed most of the porting work.</b> SEV-SNP and TDX run an unmodified OS, so existing software moves in without a rewrite. Apple's Private Cloud Compute and WhatsApp's Private Processing apply the same idea to AI requests, and Meta says Muse's Confidential VM is intended to “cryptographically and verifiably” keep Meta out.</p>
+    </article>
+    <article class="pbox">
+      <p class="tag">Where you'll find one</p>
+      <ul>
+        <li><b>AWS.</b> Nitro Enclaves (2020), and AMD SEV-SNP on M6a, C6a and R6a EC2 instances since 2023, with NitroTPM for measured boot.</li>
+        <li><b>Microsoft Azure.</b> Confidential VMs on AMD SEV-SNP and Intel TDX, confidential containers on Azure Container Instances, Intel SGX enclave VMs, and confidential VMs with NVIDIA H100 GPUs.</li>
+        <li><b>Google Cloud.</b> Confidential VMs on AMD SEV, SEV-SNP and Intel TDX, Confidential GKE (Google Kubernetes Engine) nodes, Confidential Space for attested workloads, and confidential VMs with NVIDIA H100 GPUs.</li>
+        <li><b>Your own servers.</b> AMD EPYC and Intel Xeon processors support SEV-SNP and TDX, and recent Linux KVM and QEMU releases can host confidential VMs on them.</li>
+        <li><b>GPUs.</b> NVIDIA H100 and Blackwell GPUs can be attached to a confidential VM. The GPU produces its own attestation report, and CPU&ndash;GPU transfers are encrypted.<sup class="fnref"><a href="#fn-gpu" id="fnref-gpu" aria-label="Footnote 1: GPU details">1</a></sup></li>
+        <li><b>Phones.</b> Arm TrustZone and Apple's Secure Enclave protect device keys and biometric data. Android's protected KVM hypervisor (pKVM, built on Linux's Kernel-based Virtual Machine) runs isolated VMs, and apps can prove key and device properties to a server with Android Key Attestation or Apple's App Attest.</li>
+      </ul>
+      <p class="fn" id="fn-gpu"><sup>1</sup> For implementation details, see <a href="https://docs.nvidia.com/attestation/">NVIDIA’s GPU attestation documentation</a>.</p>
+    </article>
+  </div>
+
+  <p class="narr">The illustrations give each party a character: Mac is the verifier, the notary is the CPU's security hardware, the vault is the confidential VM, and the data center is Meta's host. The text uses the real terms.</p>
+</section>
+
+<section class="cast" aria-labelledby="cast-h">
+  <h2 class="tag" id="cast-h">The parties</h2>
+  <div class="cast-grid">
+    <article class="who">
+      <img src="img/av-you.webp" width="192" height="192" alt="Mac, in round sunglasses and a fleece jacket." loading="lazy" decoding="async">
+      <span class="role">The verifier</span>
+      <h3>Mac</h3>
+      <p>A white-hat cybersecurity steward. Mac holds the key and releases it only after the VM's attestation report verifies.</p>
+    </article>
+    <article class="who">
+      <img src="img/muse-cast-v2.webp" width="482" height="430" alt="Muse, a small fluffy cream-colored character." loading="lazy" decoding="async">
+      <span class="role">The workload</span>
+      <h3>Muse</h3>
+      <p>The agent code running inside the confidential VM. It acts on your accounts, so it handles sensitive data.</p>
+    </article>
+    <article class="who">
+      <img src="img/av-notary.webp" width="192" height="192" alt="The notary character, standing in for the CPU's security hardware." loading="lazy" decoding="async">
+      <span class="role">The root of trust</span>
+      <h3>The CPU</h3>
+      <p>Security hardware in the processor, such as AMD's Secure Processor or Intel's TDX module. It measures the VM at launch and signs attestation reports.</p>
+    </article>
+    <article class="who">
+      <img src="img/av-dc.webp" width="192" height="192" alt="Rows of servers and cooling fans in Meta's data center." loading="lazy" decoding="async">
+      <span class="role">The host</span>
+      <h3>Meta's data center</h3>
+      <p>Hypervisor, host OS, storage, network and operators. It runs the VM and relays its traffic but can't read or modify its memory.</p>
+    </article>
+  </div>
+  <p class="support"><img src="img/av-sentinel.webp" width="192" height="192" alt="" loading="lazy" decoding="async">Also shown: Sentinel, a separate agent that, in Meta's design, approves Muse's connector actions and outbound network requests.</p>
+</section>
+
+<!-- 1 -->
+<section class="scene" aria-labelledby="s1">
+  <figure class="art"><img class="photo" src="img/you-desk.webp" width="868" height="943" alt="Illustration: Mac and Muse working side by side at a desk." loading="lazy" decoding="async" srcset="img/you-desk-480.webp 480w, img/you-desk.webp 868w" sizes="(max-width: 900px) calc(100vw - 40px), (min-width: 1160px) 564px, calc((100vw - 84px) * 0.52381)"></figure>
+  <div class="story">
+    <p class="tag">Scene 01 · The workload</p>
+    <h2 id="s1">Muse runs on hardware you don't control</h2>
+    <p class="narr">Muse books travel, fills in forms and sends messages on your behalf. Each user's Muse runs in its own VM on Meta's servers, and in an ordinary VM the hypervisor can read all of the guest's memory.</p>
+    <div class="chat" role="group" aria-label="Chat between Mac and Muse">
+      <div class="chat-head"><span>Mac · Muse</span><span>live</span></div>
+      <div class="msg l"><img class="ic" src="img/av-you.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Mac</span><b>Book the Lisbon trip</b> and pay with my card.</div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>On it.</b> Your card details stay in a separate credential store. I work with a stand-in token, and the real value is inserted at the network boundary.</div>
+      <div class="msg l"><img class="ic" src="img/av-you.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Mac</span><b>Where does this code run?</b></div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>In a VM on a Meta host.</b> Meta's hypervisor runs underneath me.</div>
+    </div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="scene flip" aria-labelledby="s2">
+  <figure class="art"><img class="photo" src="img/datacenter.webp" width="1262" height="1246" alt="Illustration: a tower of small furnished rooms inside a data center, standing in for many VMs on shared hosts." loading="lazy" decoding="async" srcset="img/datacenter-480.webp 480w, img/datacenter-800.webp 800w, img/datacenter.webp 1262w" sizes="(max-width: 900px) calc(100vw - 40px), (min-width: 1160px) 513px, calc((100vw - 84px) * 0.476191)"></figure>
+  <div class="story">
+    <p class="tag">Scene 02 · Threat model</p>
+    <h2 id="s2">In a standard VM, the host can read everything</h2>
+    <div class="chat" role="group" aria-label="Chat between Muse and Meta's host">
+      <div class="chat-head"><span>Muse · Meta host</span><span>live</span></div>
+      <div class="msg l"><img class="ic" src="img/av-dc.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Meta host</span><b>Your VM is isolated</b> from other users' VMs on this machine.</div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>Can you read my memory?</b></div>
+      <div class="msg l"><img class="ic" src="img/av-dc.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Meta host</span><b>In a standard VM, yes.</b> The hypervisor can read any guest's memory. Today Meta limits access by policy, and says it can still access data when needed to support, secure or operate the service.</div>
+      <div class="msg l"><img class="ic" src="img/av-dc.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Meta host</span><b>In a confidential VM, no.</b> The CPU encrypts your memory with a key I never receive.</div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>How would Mac verify that?</b></div>
+      <div class="msg l"><img class="ic" src="img/av-dc.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Meta host</span><b>Remote attestation.</b> The CPU signs a report about your VM, and I can't forge that signature.</div>
+    </div>
+    <blockquote class="quote">
+      <p>“…encrypted with a key only they hold, so not even Meta can access it.”</p>
+      <cite>Meta, <a href="https://about.fb.com/news/2026/09/introducing-muse-personal-ai-agent/">Introducing Muse</a>. The Confidential VM is with testers now and due later this year.</cite>
+    </blockquote>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="scene vault-scene" aria-labelledby="s3">
+  <figure class="art"><div class="vault-stage"><span class="vault-ground" aria-hidden="true"></span><span class="vault-contact" aria-hidden="true"></span><img class="float" src="img/vault.webp" width="1600" height="904" alt="Illustration: a steel vault, standing in for the confidential VM, with Muse inside and two guards, standing in for Sentinel, at the entrance." loading="lazy" decoding="async" srcset="img/vault-480.webp 480w, img/vault-800.webp 800w, img/vault.webp 1600w" sizes="(max-width: 900px) calc(100vw - 40px), (min-width: 1160px) 564px, calc((100vw - 84px) * 0.52381)"></div></figure>
+  <div class="story">
+    <p class="tag">Scene 03 · Memory isolation</p>
+    <h2 id="s3">Encrypted memory the hypervisor can't read</h2>
+    <p class="narr">In a confidential VM (AMD SEV-SNP or Intel TDX), the CPU encrypts the VM's memory with a key generated and kept inside the processor. Its integrity protection also stops the hypervisor from remapping or overwriting those pages. <b>The host still controls availability:</b> it can pause or stop the VM, and it carries all disk and network traffic, so the VM has to encrypt those itself.</p>
+    <div class="chat" role="group" aria-label="Chat between Muse, Sentinel and Meta's host">
+      <div class="chat-head"><span>Muse · Sentinel · Meta host</span><span>live</span></div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>Who approves what I send out?</b></div>
+      <div class="msg l"><img class="ic" src="img/av-sentinel.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Sentinel</span><b>I do.</b> In Meta's design, every connector action and outbound network request goes through Sentinel first.</div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>And what can the host still do?</b></div>
+      <div class="msg l"><img class="ic" src="img/av-dc.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Meta host</span><b>Schedule, pause or stop your VM,</b> and carry its disk and network traffic. I can't read or change its memory.</div>
+    </div>
+  </div>
+</section>
+
+<div class="pair-block">
+<!-- 4 -->
+<section class="scene flip vault-scene" aria-labelledby="s4">
+  <figure class="art"><div class="vault-stage"><span class="vault-ground" aria-hidden="true"></span><span class="vault-contact" aria-hidden="true"></span><img class="float" src="img/scan.webp" width="1600" height="904" alt="Illustration: a blueprint scan of the vault labeled measurement 0xA7F3 9C2E 4B1D 8E60 F2A9, with a blue Verified seal." loading="lazy" decoding="async" srcset="img/scan-480.webp 480w, img/scan-800.webp 800w, img/scan.webp 1600w" sizes="(max-width: 900px) calc(100vw - 40px), (min-width: 1160px) 513px, calc((100vw - 84px) * 0.476191)"></div></figure>
+  <div class="story">
+    <p class="tag">Scene 04 · Launch measurement</p>
+    <h2 id="s4">Measured before the first instruction runs</h2>
+    <p class="narr">While the VM is being created, the CPU hashes its initial memory image into a <b>launch measurement</b> (on SEV-SNP, a 48-byte hash computed with SHA-384, one of the standard Secure Hash Algorithms). It covers the virtual firmware, and also the kernel, initrd and kernel command line when the launch is set up to measure them. Once the VM starts, the value is fixed for that boot. Neither the guest nor the host can change it. The card below shows the field's bytes and how they're built.</p>
+    <div class="chat" role="group" aria-label="Chat between Meta's host, the CPU and Muse">
+      <div class="chat-head"><span>Meta host · CPU · Muse</span><span>launch</span></div>
+      <div class="msg l"><img class="ic" src="img/av-dc.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Meta host</span><b>Launching the VM.</b> Loading firmware, kernel, initrd and command line.</div>
+      <div class="msg r"><img class="ic" src="img/av-notary.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">CPU</span><b>Measuring the initial image.</b> Launch measurement: <span class="holo-t">0xA7F3-9C2E-4B1D-8E60-F2A9-11C4</span>. <b>Fixed for this boot.</b></div>
+      <div class="msg l"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>So it's computed before my code runs.</b> I can't choose my own measurement.</div>
+    </div>
+    <div class="chips">
+      <div class="in"><span class="tag">In the launch measurement</span><ul><li>Virtual firmware</li><li>Kernel, initrd and command line, when measured at launch</li><li>The root filesystem, if the command line pins it with a dm-verity root hash (Linux's block-level integrity check)</li></ul></div>
+      <div class="out"><span class="tag">Not in it</span><ul><li>Code or files loaded after boot</li><li>Config the host injects later</li><li>Memory contents at runtime</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<section class="holo-card meas" id="meas" aria-labelledby="meas-h">
+  <h2 class="h" id="meas-h">The MEASUREMENT field of an SEV-SNP attestation report</h2>
+  <div class="scroll-x" tabindex="0" role="region" aria-label="Example report bytes; scroll horizontally for all columns">
+    <div class="hexdump" role="table" aria-label="Report bytes from offset 0x080 to 0x0CF">
+      <div class="hx-row dim" role="row"><span class="off" role="cell">0x080</span><span class="bytes" role="cell">00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00</span><span class="fld" role="cell">REPORT_DATA · last 16 of 64 bytes</span></div>
+      <div class="hx-row m" role="row"><span class="off" role="cell">0x090</span><span class="bytes" role="cell" data-mrow>a7 f3 9c 2e 4b 1d 8e 60  f2 a9 11 c4 7f ee 13 a9</span><span class="fld" role="cell">MEASUREMENT · bytes 0&ndash;15</span></div>
+      <div class="hx-row m" role="row"><span class="off" role="cell">0x0A0</span><span class="bytes" role="cell" data-mrow>b9 81 2f b4 40 c4 57 89  44 e3 f6 89 78 f9 ff 25</span><span class="fld" role="cell">MEASUREMENT · bytes 16&ndash;31</span></div>
+      <div class="hx-row m" role="row"><span class="off" role="cell">0x0B0</span><span class="bytes" role="cell" data-mrow>db 2e f4 23 b6 bd fe 4c  7f 89 46 98 a0 d8 26 9c</span><span class="fld" role="cell">MEASUREMENT · bytes 32&ndash;47</span></div>
+      <div class="hx-row dim" role="row"><span class="off" role="cell">0x0C0</span><span class="bytes" role="cell">00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00</span><span class="fld" role="cell">HOST_DATA · first 16 of 32 bytes</span></div>
+    </div>
+  </div>
+  <p class="meas-note"><b>48 bytes, one SHA-384 digest.</b> The field sits at offset 0x90 of the report, between the guest's REPORT_DATA and the host-supplied HOST_DATA. No individual byte encodes a version or a component. The whole value identifies one exact set of launch inputs.</p>
+  <span class="h">One report, two halves, checked against two different lists</span>
+  <div class="halves">
+    <div class="half plat"><p class="hk">Platform half · AMD's</p><p class="hf">REPORTED_TCB <small>offset 0x180 · 8 bytes</small></p><p class="hf">SIGNATURE <small>offset 0x2A0 · by a key unique to this chip (VCEK)</small></p><p>The security version numbers (SVNs) of the chip's firmware and microcode, and a signature that chains to AMD's root key. <b>AMD publishes the facts</b> through its Key Distribution Service (KDS). <b>The verifier checks</b> that the chain verifies and the TCB meets its minimum.</p></div>
+    <div class="half img"><p class="hk">Image half · Muse's</p><p class="hf">MEASUREMENT <small>offset 0x90 · 48 bytes, shown above</small></p><p class="hf">HOST_DATA <small>offset 0xC0 · where the platform uses it</small></p><p>The hash of what was launched. <b>AMD says nothing about whether it's good;</b> the chip reports whatever it measured. <b>Muse's publisher publishes</b> the expected value, and <b>the verifier checks</b> it against its own approved list.</p></div>
+  </div>
+  <p class="meas-note">A genuine signature proves the platform half. Only the approved list proves the image half. <a class="holo-link" href="#s8">Scene 08</a> shows what happens when the second check fails.</p>
+  <span class="h">How the AMD Secure Processor builds it, one page at a time</span>
+  <div class="formula"><span class="fl">new digest = SHA-384(</span><span class="fl ind">previous digest ‖ SHA-384(page contents) ‖ page length, type and guest address</span><span class="fl">)</span></div>
+  <ol class="chain">
+    <li><span class="n">Start</span><span class="d">48 zero bytes</span><span class="g">0000 0000 …</span></li>
+    <li><span class="n">1</span><span class="d">Virtual firmware pages<small>Open Virtual Machine Firmware (OVMF), contents hashed page by page</small></span><span class="g">51c5 4c84 …</span></li>
+    <li><span class="n">2</span><span class="d">Special pages listed in the firmware's metadata<small>Zeroed pages, the secrets page and the CPUID page (the processor features the guest sees) are recorded by type and address only. The kernel hashes page carries SHA-256 of the kernel <code class="chg" id="meas-kh">032b 6a39…</code>, initrd and command line.</small></span><span class="g chg" id="meas-d2">cf46 0482 …</span></li>
+    <li><span class="n">3</span><span class="d">Initial vCPU state<small>One VM save area (VMSA) page per virtual CPU, holding its starting registers. Measured last.</small></span><span class="g chg" id="meas-d3"><small>= MEASUREMENT</small>a7f3 9c2e …</span></li>
+  </ol>
+  <div class="demo-foot">
+    <span class="meas-status" id="meas-status" aria-live="polite" aria-atomic="true">Published kernel · the value verifiers expect</span>
+    <button class="btn" id="meas-toggle" disabled type="button" aria-controls="meas" aria-pressed="false">Change one byte of the kernel</button>
+  </div>
+  <p class="demo-foot demo-annotation"><span class="demo-explainer">Example values. This is the direct-boot layout QEMU uses with AMD's OVMF build. Without the kernel hashes page, the kernel isn't in the launch measurement at all. Real inputs are PAGE_INFO structures from AMD's SEV-SNP firmware application binary interface (ABI), and tools such as sev-snp-measure recompute the value from the same firmware, kernel, initrd and command line.</span></p>
+</section>
+</div>
+
+<!-- 5 -->
+<section class="scene vault-scene" aria-labelledby="s5">
+  <figure class="art"><div class="vault-stage"><span class="vault-ground" aria-hidden="true"></span><span class="vault-contact" aria-hidden="true"></span><img class="float" src="img/notary.webp" width="1600" height="904" alt="Illustration: the notary character inside the vault holding a stamp and a certificate of attestation with a red wax seal." loading="lazy" decoding="async" srcset="img/notary-480.webp 480w, img/notary-800.webp 800w, img/notary.webp 1600w" sizes="(max-width: 900px) calc(100vw - 40px), (min-width: 1160px) 564px, calc((100vw - 84px) * 0.52381)"></div></figure>
+  <div class="story">
+    <p class="tag">Scene 05 · Attestation report</p>
+    <h2 id="s5">A signed report the host can relay but not forge</h2>
+    <p class="narr">To get proof, your app sends a fresh random <b>nonce</b>. Muse's VM asks the CPU for an attestation report containing the launch measurement, the version of the trusted computing base (TCB: the firmware and microcode the protection depends on), the launch policy (for example, whether debugging is allowed) and 64 bytes of report data supplied by the guest, here set to your nonce. The CPU signs the report with a per-chip key that the vendor certifies.</p>
+    <div class="chat" role="group" aria-label="Chat between Muse, the CPU and Meta's host">
+      <div class="chat-head"><span>Muse · CPU · Meta host</span><span>live</span></div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>Mac sent a nonce:</b> <span class="holo-t">7C41-09E2</span>. Requesting a signed report.</div>
+      <div class="msg l"><img class="ic" src="img/av-notary.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">CPU</span><b>Report signed.</b> Launch measurement, TCB version, debug disabled, and your nonce in the report data.</div>
+      <div class="msg r"><img class="ic" src="img/av-dc.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Meta host</span><b>Forwarding it.</b> If I change any byte, the signature fails.</div>
+    </div>
+    <p class="narr">The nonce shows the report was produced after you asked. It doesn't trigger a new measurement; the report still carries the value computed at launch.</p>
+  </div>
+</section>
+
+<!-- 6 -->
+<section class="scene flip" aria-labelledby="s6">
+  <figure class="art"><img class="photo" src="img/you-phone.webp" width="791" height="484" alt="Illustration: Mac on the phone, looking skeptical, with Muse beside him." loading="lazy" decoding="async" srcset="img/you-phone-480.webp 480w, img/you-phone.webp 791w" sizes="(max-width: 900px) calc(100vw - 40px), (min-width: 1160px) 513px, calc((100vw - 84px) * 0.476191)"></figure>
+  <div class="story">
+    <p class="tag">Scene 06 · Verification</p>
+    <h2 id="s6">What the verifier checks</h2>
+    <div class="chat" role="group" aria-label="Chat between Mac and Muse">
+      <div class="chat-head"><span>Mac · Muse</span><span>live</span></div>
+      <div class="msg l"><img class="ic" src="img/av-you.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Mac</span><b>Hi Muse, quick question before I give you my card.</b> How can I tell what code you're actually running?</div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>Good question. People usually point to one of these:</b>
+        <ul>
+          <li><span><b>Signed commits and tags on GitHub</b> show which developer's key signed the source or a release.</span></li>
+          <li><span><b>Code-signing certificates</b>, such as Apple Developer ID with notarization or Windows Authenticode, show which publisher signed an app and that the file hasn't changed since.</span></li>
+          <li><span><b>Build provenance</b>, such as a Sigstore signature or a Supply-chain Levels for Software Artifacts (SLSA) attestation, links a binary to the source and build system that produced it.</span></li>
+          <li><span><b>Published checksums</b> let you confirm a download matches what the publisher posted.</span></li>
+        </ul></div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>All of these vouch for files.</b> None of them can tell you what's running on a server you can't see. The operator could run something else and still show you valid signatures.</div>
+      <div class="msg l"><img class="ic" src="img/av-you.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Mac</span><b>Then can I see the hardware attestation for your VM?</b> Here's a fresh nonce: <span class="holo-t">7C41-09E2</span></div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>Here's the report the CPU signed,</b> with your nonce in it. Check the signature chain, then compare the measurement with a build you trust.</div>
+      <div class="msg l"><img class="ic" src="img/av-you.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Mac</span><b>The signature chains to AMD's root.</b> The measurement matches the published build, and the nonce is mine.</div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>Then you know this VM launched from that build.</b></div>
+    </div>
+    <div class="holo-card" role="group" aria-label="Example verification result">
+      <span class="h">Report verification · example</span>
+      <div class="hrow"><span class="k">1 · Signature</span><span class="v">Chains to the vendor root<small>AMD Root Key (ARK) → AMD SEV Key (ASK) → Versioned Chip Endorsement Key (VCEK)</small></span><span class="ok">PASSED</span></div>
+      <div class="hrow"><span class="k">2 · Measurement</span><span class="v">0xA7F3-9C2E-4B1D-8E60-F2A9-11C4<small>equals the reproducible build</small></span><span class="ok">MATCH</span></div>
+      <div class="hrow"><span class="k">3 · Policy</span><span class="v">Debug off, TCB current<small>host has no debug access to memory</small></span><span class="ok">PASSED</span></div>
+      <div class="hrow"><span class="k">4 · Nonce</span><span class="v">7C41-09E2<small>matches the request</small></span><span class="ok">FRESH</span></div>
+    </div>
+    <p class="narr">The expected measurement has to come from a source you trust: your own rebuild of the published source, or values published by independent auditors. That requires a reproducible build, one that produces identical bytes every time.</p>
+  </div>
+</section>
+
+<!-- 7 -->
+<div class="pair-block">
+<section class="scene" aria-labelledby="s7">
+  <figure class="art"><img class="photo" src="img/you-angry.webp" width="791" height="452" alt="Illustration: Mac, furious over the laptop, while Muse covers its mouth in shock." loading="lazy" decoding="async" srcset="img/you-angry-480.webp 480w, img/you-angry.webp 791w" sizes="(max-width: 900px) calc(100vw - 40px), (min-width: 1160px) 564px, calc((100vw - 84px) * 0.52381)"></figure>
+  <div class="story">
+    <p class="tag">Scene 07 · Mismatch</p>
+    <h2 id="s7">Any change to the image changes the measurement</h2>
+    <div class="chat" role="group" aria-label="Chat between Mac and Muse">
+      <div class="chat-head"><span>Mac · Muse</span><span>live</span></div>
+      <div class="msg l"><img class="ic" src="img/av-you.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Mac</span><b>This measurement doesn't match the published build.</b></div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>Then this VM didn't launch from the published image.</b> Don't release your key to it.</div>
+    </div>
+    <p class="narr">A cryptographic hash maps any change, even one character, to an unrelated value. Suppose a build of Muse sends messages without asking Sentinel first. The source change is one line, but the measurement is completely different. Try it below.</p>
+  </div>
+</section>
+
+<section class="holo-card demo" aria-labelledby="demo-h">
+  <h2 class="h" id="demo-h">Try it · one line, one hash</h2>
+  <div class="hrow"><span class="k">Published build</span><div class="code-field"><div class="line">send(message) if sentinel.<wbr>approves(message)</div><span class="v" id="demo-published-hex">0x1AAE-A9BE-9797-3B05-FF55-FA57</span></div><span></span></div>
+  <div class="hrow"><label class="k" for="demo-line">Modified build · edit me</label><div class="code-field"><input id="demo-line" disabled type="text" autocapitalize="off" autocorrect="off" aria-describedby="demo-note" value="send(message)" spellcheck="false" autocomplete="off"><span class="v" id="demo-hex">0x3D01-01A3-07F6-9CEA-C3E1-8BC6</span></div><span></span></div>
+  <div class="demo-foot">
+    <div class="demo-verdict"><span class="seal red" id="demo-seal" role="status" aria-live="polite" aria-atomic="true">NO<br>MATCH</span><button class="btn" id="demo-reset" disabled type="button">Restore the published line</button></div>
+    <noscript><p class="meas-note">Enable JavaScript to edit this example. The values below are static examples.</p></noscript>
+    <p id="demo-note">A simplified example: the SHA-256 of a single line, computed in your browser. A real launch measurement covers the entire boot image.</p>
+  </div>
+</section>
+</div>
+
+<!-- production -->
+<section class="prod" aria-labelledby="s8">
+  <div class="head">
+    <p class="tag">Scene 08 · In production</p>
+    <h2 id="s8">When the measurement doesn't match</h2>
+  </div>
+  <p class="narr">Mac checking a report by hand is a teaching device. In production nobody reads hex. The verifier is software that runs every time a VM starts or a client connects, and the question that matters is what it does when the values differ.</p>
+
+  <div class="runtime">
+    <b>A valid signature doesn't mean an approved build.</b>
+    <p>An attacker who changes Muse's image can't forge AMD's or Intel's signature, and doesn't need to. They boot the modified image on a real chip, and the chip signs a genuine report whose MEASUREMENT is different. The vendor signs a modified guest just as readily as the published one. A verifier that only checks the signature keeps talking to that VM. One that also requires a measurement it has already approved stops.</p>
+  </div>
+
+  <div class="verdict">
+    <p class="tag tag-muted">What the verifier sees, and what it does</p>
+    <div class="vrow"><span class="st off">Refuse</span><div><b>Signature fails, or the platform TCB is revoked</b><p>The report isn't from a trustworthy chip. AMD and Intel publish revocation status in the signed collateral they issue after each TCB update.</p></div></div>
+    <div class="vrow"><span class="st off">Refuse</span><div><b>Signature valid, TCB below the verifier's floor</b><p>The firmware or microcode is older than the policy allows. An out-of-date TCB passes only inside a grace period the policy states in writing.</p></div></div>
+    <div class="vrow"><span class="st off">Refuse</span><div><b>Signature valid, measurement not on the approved list</b><p>Refuse that VM only. Keep using every VM that still presents an approved measurement, and don't add the new value because the signature checks out.</p></div></div>
+    <div class="vrow"><span class="st on">Accept</span><div><b>Signature valid, TCB at or above the floor, measurement approved</b><p>Proceed: open the connection, or release the key.</p></div></div>
+  </div>
+
+  <p class="tag tag-muted">Who does the checking</p>
+  <div class="verifiers">
+    <article class="vcard"><h3>The client app</h3><p>Before sending a request, the app verifies the report, usually inside the TLS handshake (attested TLS), and refuses to connect if it fails. Apple's Private Cloud Compute clients work this way.</p></article>
+    <article class="vcard"><h3>A key release service</h3><p>A key broker, or the user's own device, releases the VM's disk and data keys only to a report that matches policy. On AWS, a KMS key policy names the expected PCR values; with the wrong ones the enclave still runs but can't decrypt.</p></article>
+    <article class="vcard"><h3>An attestation service</h3><p>Microsoft Azure Attestation, Google Cloud Attestation and Intel Trust Authority check reports against a policy and issue a signed token. Relying on one puts that provider in the decision; a verifier can instead check the vendor certificate chain itself.</p></article>
+    <article class="vcard mac"><img src="img/av-you.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><h3>Mac's real job</h3><p>Write the policy those checks enforce, review each release before its measurement is approved, and investigate alerts. Mac sets the rules; software applies them on every boot.</p></article>
+  </div>
+
+  <div class="decide">
+    <article><p class="tag">Decision 1 · The platform half</p><h3>Is this chip's firmware recent enough?</h3><dl><dt>Who publishes the facts</dt><dd>AMD's Key Distribution Service (KDS) and Intel's Provisioning Certification Service (PCS) publish signed collateral listing each TCB level and its security advisories.</dd><dt>Who decides</dt><dd>The verifier's policy sets a minimum TCB. The vendor reports status; it doesn't decide whether an out-of-date platform is acceptable to you.</dd></dl></article>
+    <article><p class="tag">Decision 2 · The image half</p><h3>Is this the Muse build we approved?</h3><dl><dt>Who publishes the facts</dt><dd>Whoever built the release publishes its expected measurement. The chip only reports the hash of what was launched.</dd><dt>Who decides</dt><dd>The verifier's policy, after someone has reviewed what changed. A new value is added only through a channel the verifier already trusts: a signed policy update or a transparency log.</dd></dl></article>
+  </div>
+
+  <div class="prod-grid">
+    <div class="chat" role="group" aria-label="Chat between Meta's host and Muse">
+      <div class="chat-head"><span>Meta host · Muse</span><span>relaunch</span></div>
+      <div class="msg l"><img class="ic" src="img/av-dc.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Meta host</span><b>Your relaunched VM just attested.</b> The AMD signature is valid, but its measurement isn't on the approved list.</div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>Then the key service won't release my keys to it,</b> and Mac's app won't connect. The other instances keep serving.</div>
+      <div class="msg l"><img class="ic" src="img/av-dc.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Meta host</span><b>Draining it now.</b> Relaunching from the approved image and keeping the report.</div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>Good. That report is signed by the CPU,</b> so it's evidence of exactly what was launched.</div>
+    </div>
+    <ol class="failsteps" aria-label="What happens on a mismatch">
+      <li><b>The check fails closed</b><span>A wrong measurement, a debug launch or a TCB below the floor all count as untrusted. There is no partial trust.</span></li>
+      <li><b>The keys stay sealed</b><span>The VM may boot, but it can't decrypt stored data or reach its secrets.</span></li>
+      <li><b>Clients refuse that VM, not the service</b><span>The attested handshake fails, so apps send nothing to it and are routed to instances that verify.</span></li>
+      <li><b>The instance is replaced</b><span>The orchestrator drains it and relaunches from the approved image.</span></li>
+      <li><b>The report is kept</b><span>A CPU-signed report with the wrong measurement shows what the host launched. It goes to the security team.</span></li>
+    </ol>
+  </div>
+
+  <div class="vendors">
+    <p class="tag tag-muted">Every vendor gives the verifier the same instruction: keep an allowlist</p>
+    <div class="mt-wrap" tabindex="0" role="region" aria-label="Vendor verification policies; scroll horizontally for all columns">
+      <table class="mtable vend">
+        <caption class="sr-only">Vendor verification policies</caption>
+        <thead><tr><th scope="col">Platform</th><th scope="col">What its documentation tells the verifier to do</th></tr></thead>
+        <tbody>
+          <tr><td class="f">Intel TDX</td><td>Appraise the quote against a list of expected measurements and a TCB policy. An unlisted measurement fails; a revoked TCB fails; an out-of-date TCB passes only within a stated grace period.</td></tr>
+          <tr><td class="f">AMD SEV-SNP</td><td>Check the signed report against an approved launch measurement, HOST_DATA and a minimum TCB. AMD signs reports; it doesn't publish which guest images are acceptable.</td></tr>
+          <tr><td class="f">AWS Nitro Enclaves</td><td>Name the expected PCR values in the KMS key policy. A different PCR can't decrypt.</td></tr>
+          <tr><td class="f">Azure confidential containers</td><td>Compare the policy hash in HOST_DATA to the expected one before releasing a secret. A mismatch stops the release.</td></tr>
+          <tr><td class="f">Google Cloud TDX</td><td>Compare MRTD and the RTMRs to your own policy. Google's signed endorsement covers the firmware only, so the guest image is checked only if your policy names those registers.</td></tr>
+          <tr><td class="f">Apple Private Cloud Compute</td><td>The device sends data only to a node whose measurement matches a release already in Apple's public transparency log. Unlisted nodes get nothing; listed ones keep working.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="notes2">
+    <div><h3>Who approves a new measurement?</h3><p>No industry body approves Muse's hash. Each existing group owns one layer: AMD and Intel publish TCB status, Certificate Transparency and Sigstore's Rekor log that something was published, and IETF SCITT (Supply Chain Integrity, Transparency and Trust) standardizes signed statements and log receipts. None of them judges whether a build is good. That decision stays with the verifier's policy, fed by the publisher through the update channel the verifier pinned.</p></div>
+    <div><h3>Why that channel needs more than one key</h3><p>If an attacker steals the single key that signs policy updates, verifiers approve the attacker's measurement. Requiring several signers, and publishing every approval in a public log, means one stolen key can't quietly retarget a single customer. Apple publishes every Private Cloud Compute release in a public log for the same reason.</p></div>
+    <div><h3>Not every mismatch is an attack</h3><p>A release deployed before its measurement reached the approved list, a cloud firmware or paravisor update that changed the measured layer, or a debug build shipped by mistake all fail the same way. The response is the same too: refuse first, then investigate.</p></div>
+    <div><h3>What attestation can't stop</h3><p>The host can always refuse to run Muse or drop its traffic. Attestation doesn't guarantee availability. It stops the host from passing a different VM off as the published one.</p></div>
+  </div>
+</section>
+
+<!-- pitfalls -->
+<section class="traps" aria-labelledby="t-h">
+  <p class="tag">Scene 09 · Pitfalls</p>
+  <h2 id="t-h">Three common TEE verification pitfalls</h2>
+  <div class="trap-grid two">
+    <article class="trap"><img src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><h3>Trusting report data</h3><p>The guest fills in the report's 64-byte data field itself, so a version string or source hash placed there is only what the code inside chose to write. Pin the launch measurement, which the CPU computes.</p></article>
+    <article class="trap"><span class="zero" aria-hidden="true">0x00</span><h3>Accepting debug launches</h3><p>A VM launched with debugging allowed still gets a validly signed report, but the host can read its memory. Check the policy and reject debug launches. Nitro enclaves in debug mode report all-zero PCRs.</p></article>
+</div>
+  <article class="cover" aria-labelledby="cover-h">
+    <div class="cover-head">
+      <img src="img/av-dc.webp" width="192" height="192" alt="" loading="lazy" decoding="async">
+      <div>
+        <h3 id="cover-h">Assuming the measurement covers more than it does</h3>
+        <p>An SEV-SNP report carries several fields, and each vouches for something different. Only MEASUREMENT is a hash of guest code computed by the CPU, and no field in the report follows code that changes after launch.</p>
+      </div>
+    </div>
+    <div class="mt-wrap" tabindex="0" role="region" aria-label="What each attestation report field covers; scroll horizontally for all columns">
+      <table class="mtable">
+        <caption class="sr-only">What each attestation report field covers</caption>
+        <thead><tr><th scope="col">Field</th><th scope="col">Set by, and when</th><th scope="col">Covers</th><th scope="col">Doesn't cover</th></tr></thead>
+        <tbody>
+          <tr><td class="f">MEASUREMENT<small>48 bytes</small></td><td>AMD Secure Processor, while the VM is created</td><td>Everything loaded before the first instruction: the firmware, the initial vCPU state, and the kernel, initrd and command line if their hashes page is measured. On the major clouds it covers the firmware, a paravisor or a utility VM instead of your OS; see the platform table below.</td><td>The root disk, anything loaded or changed after launch, and memory at runtime.</td></tr>
+          <tr><td class="f">HOST_DATA<small>32 bytes</small></td><td>The host, at launch; fixed afterward</td><td>Whatever the host commits to. Azure confidential containers put the SHA-256 of the container security policy here, and that policy lists each image layer's dm-verity root.</td><td>Enforcement. Code inside the VM has to apply the policy; the CPU only records the value.</td></tr>
+          <tr><td class="f">ID_KEY_DIGEST<br>AUTHOR_KEY_DIGEST<small>48 bytes each</small></td><td>The VM owner signs an ID block, which the host passes in at launch</td><td>Which key approved the launch image. The firmware refuses to start the VM if its measurement differs from the one in the ID block, which also sets FAMILY_ID, IMAGE_ID and the guest security version number (SVN).</td><td>Anything after launch. Without an ID block, these fields are zero.</td></tr>
+          <tr><td class="f">POLICY<br>REPORTED_TCB<br>PLATFORM_INFO</td><td>The guest policy at launch; the rest by the platform</td><td>Whether debugging and migration are allowed, the firmware and microcode versions (TCB), and platform features such as simultaneous multithreading (SMT).</td><td>The guest's code.</td></tr>
+          <tr><td class="f">REPORT_DATA<small>64 bytes</small></td><td>The guest, each time it asks for a report</td><td>A nonce or a public-key hash, which proves freshness or binds a TLS key to the report.</td><td>Anything about code. It isn't a measurement.</td></tr>
+          <tr class="outside"><td class="f">vTPM PCRs<small>outside the SNP report</small></td><td>A paravisor or a Secure VM Service Module (SVSM) inside the confidential VM, during boot and at runtime</td><td>The boot chain after the firmware (bootloader, kernel, initrd, command line) and, with Linux's Integrity Measurement Architecture (IMA), each file as it is executed or loaded.</td><td>Anything the hosting layer misses. The PCRs are only as trustworthy as the paravisor or SVSM, which MEASUREMENT must cover, and each entry has to be checked against the event log.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="runtime">
+      <b>The starting image can be in MEASUREMENT. Changes made after launch can't.</b>
+      <p>The AMD Secure Processor hashes the initial guest memory once, at launch, and then freezes MEASUREMENT. A direct launch can place the firmware, kernel, initrd and command line in those launch pages, and sev-snp-measure recomputes the same digest from them. A disk attached after launch is outside it. SEV-SNP also has no hardware register the guest can extend afterward; Intel TDX has four, the runtime measurement registers (RTMRs). So if code inside the VM downloads a new binary, patches itself or runs a script from an unmeasured disk, the next report carries the same MEASUREMENT. To cover that, pin a read-only root filesystem with a dm-verity hash on the measured command line and refuse to run anything outside it, or record each load with IMA in a vTPM and verify the event log. Sentinel's policy belongs in that pinned image.</p>
+    </div>
+    <div class="platforms">
+      <p class="tag">What MEASUREMENT contains depends on where the VM boots</p>
+      <div class="mt-wrap" tabindex="0" role="region" aria-label="Where each cloud platform measures the guest OS; scroll horizontally for all columns">
+        <table class="mtable plat">
+        <caption class="sr-only">Where each cloud platform measures the guest OS</caption>
+          <thead><tr><th scope="col">Where it boots</th><th scope="col">What MEASUREMENT is</th><th scope="col">Where the OS or image is measured instead</th></tr></thead>
+          <tbody>
+            <tr><td class="f">Direct launch<small>image placed in the launch pages</small></td><td>The starting image: firmware, kernel, initrd and command line</td><td>Nowhere else needed for boot. Anything that changes after launch is unmeasured.</td></tr>
+            <tr><td class="f">AWS EC2 SEV-SNP</td><td>The OVMF firmware, which AWS publishes as a reproducible build</td><td>Kernel and initrd in NitroTPM, AWS's vTPM</td></tr>
+            <tr><td class="f">Google Cloud SEV-SNP</td><td>The virtual firmware</td><td>Bootloader, kernel and userspace in the Shielded VM vTPM, which Google classes as software-attested</td></tr>
+            <tr><td class="f">Azure confidential VM</td><td>The paravisor</td><td>The guest boot disk, in the paravisor's vTPM</td></tr>
+            <tr><td class="f">Azure confidential containers</td><td>Microsoft's utility VM</td><td>The container image, through HOST_DATA: the hash of the security policy that names each layer's dm-verity root</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </article>
+</section>
+
+<!-- 9 -->
+<section class="scene flip" aria-labelledby="s9">
+  <figure class="art"><img class="photo" src="img/muse-desk.webp" width="1563" height="1184" alt="Illustration: Muse wearing headphones, typing on a laptop at a desk lit by a brass lamp." loading="lazy" decoding="async" srcset="img/muse-desk-480.webp 480w, img/muse-desk-800.webp 800w, img/muse-desk.webp 1563w" sizes="(max-width: 900px) calc(100vw - 40px), (min-width: 1160px) 513px, calc((100vw - 84px) * 0.476191)"></figure>
+  <div class="story">
+    <p class="tag">Scene 10 · Updates</p>
+    <h2 id="s9">Every release has a new measurement</h2>
+    <div class="chat" role="group" aria-label="Chat between Meta's host and Muse">
+      <div class="chat-head"><span>Muse · Meta host</span><span>live</span></div>
+      <div class="msg l wide"><img class="ic" src="img/av-dc.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Meta host</span><b>Muse 1.5 is built.</b> Its launch measurement differs from 1.4's in every byte.
+        <div class="mcard" role="group" aria-label="Example launch measurements for Muse 1.4 and 1.5">
+          <div class="mc-head"><span>Launch MEASUREMENT · example values</span><span>SNP report · offset 0x90 · 48 bytes</span></div>
+          <div class="mc-ver">
+            <div class="mc-top"><b>Muse 1.4</b><span class="st off">Allowed now · revoke after rollout</span></div>
+            <pre class="mc-hex" tabindex="0" role="region" aria-label="Muse 1.4 example measurement; scroll horizontally to read">0x090  a7 f3 9c 2e 4b 1d 8e 60  f2 a9 11 c4 7f ee 13 a9
+0x0A0  b9 81 2f b4 40 c4 57 89  44 e3 f6 89 78 f9 ff 25
+0x0B0  db 2e f4 23 b6 bd fe 4c  7f 89 46 98 a0 d8 26 9c</pre>
+          </div>
+          <div class="mc-ver">
+            <div class="mc-top"><b>Muse 1.5</b><span class="st on">Allowed once logged</span></div>
+            <pre class="mc-hex new" tabindex="0" role="region" aria-label="Muse 1.5 example measurement; scroll horizontally to read">0x090  3c 8d 71 e0 5b 2a 23 c2  49 83 4a 9d 24 25 2e f6
+0x0A0  86 51 33 ac 66 ca f6 44  f2 97 95 36 66 08 07 1c
+0x0B0  8c b1 b2 c4 3a 54 e5 2e  56 37 8c e5 15 e6 b2 c1</pre>
+          </div>
+          <p class="mc-foot">No byte position matches. A verifier compares the full 48 bytes against the approved list in the transparency log.</p>
+        </div></div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>Is that measurement in the transparency log,</b> and did independent reviewers approve the source change?</div>
+      <div class="msg l"><img class="ic" src="img/av-dc.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Meta host</span><b>Logged and co-signed.</b> Every verifier sees the same entry.</div>
+      <div class="msg r"><img class="ic" src="img/av-muse-v2.webp" width="192" height="192" alt="" loading="lazy" decoding="async"><span class="who-n">Muse</span><b>Then relaunch me on 1.5.</b> Keep 1.4 allowed until every VM has moved, then revoke it.</div>
+    </div>
+    <p class="narr">A measurement identifies code; it doesn't vouch for it. A backdoored build has a valid measurement of its own. So a new measurement should be accepted only after independent review of the source change and publication in an append-only transparency log. The log gives every verifier the same list, so no one can be shown a build that nobody else sees. Meta says it has started giving external auditors the Confidential VM's design and source code, and plans a continuous audit “visible to and inspectable by anyone.” (<a href="https://research.meta.ai/blog/security-and-safety-for-ai-agents-our-approach-with-muse">Meta AI</a>)</p>
+  </div>
+</section>
+
+<!-- ending -->
+<section class="ending" aria-labelledby="e-h">
+  <figure><img class="float" src="img/ending.webp" width="1600" height="905" alt="Illustration: a blueprint of the vault showing Mac with Muse, the measurement readout, and a blue Verified seal." loading="lazy" decoding="async" srcset="img/ending-480.webp 480w, img/ending-800.webp 800w, img/ending.webp 1600w" sizes="(max-width: 900px) calc(100vw - 40px), (min-width: 1160px) 566px, calc((100vw - 80px) * 0.52381)"></figure>
+  <div class="story">
+    <h2 class="tag" id="e-h">What you can verify</h2>
+    <blockquote>“This VM launched from the published Muse build. The CPU signed that measurement, <span>and I verified it.”</span></blockquote>
+    <p class="tag tag-muted">Six questions to ask when the Confidential VM ships</p>
+    <ul class="asks">
+      <li>Which TEE does it use (SEV-SNP, TDX or another), and which register holds Muse's measurement?</li>
+      <li>Are expected measurements published, and can outsiders reproduce them from source?</li>
+      <li>Does verification reject debug launches and outdated TCB versions?</li>
+      <li>Is Muse's code, Sentinel included, in the measured image, or only a paravisor or firmware layer beneath it?</li>
+      <li>Is your decryption key released only after attestation succeeds, and by which service?</li>
+      <li>Is there an append-only log of approved measurements, and who else signs it?</li>
+    </ul>
+  </div>
+</section>
+
+<section class="platform-specifics" aria-labelledby="g-h">
+  <p class="tag">For engineers</p>
+  <h2 id="g-h">Platform specifics</h2>
+  <div class="term">
+    <div class="term-bar"><i></i><i></i><i></i><span>terms.txt</span></div>
+<pre tabindex="0" role="region" aria-label="Platform specifics; scroll horizontally to read"><span class="d"># term                 platform specifics</span>
+confidential VM        AMD SEV-SNP, Intel TDX; AWS Nitro Enclaves are a related isolated-VM design
+CPU root of trust      AMD Secure Processor, Intel TDX module, AWS Nitro Security Module (NSM)
+launch measurement     SNP MEASUREMENT; TDX MRTD (measurement of the trust domain's firmware)
+                       + RTMR[1..2] (runtime measurement registers for the boot chain); Nitro PCR0/PCR2
+attestation report     SNP attestation report, TDX quote, Nitro attestation document
+vendor signature       AMD VCEK (chain ARK → ASK → VCEK); Intel quoting enclave, certified through the
+                       Provisioning Certification Key (PCK) chain; Nitro NSM
+nonce                  REPORT_DATA (SNP, TDX); nonce or user_data (Nitro)
+report data            64 guest-chosen bytes, not a measurement
+debug policy           SNP guest policy DEBUG bit; TDX ATTRIBUTES.DEBUG; Nitro debug mode zeroes PCRs
+paravisor              provider layer inside the confidential VM, beneath the guest OS (Azure); OS measured into its vTPM
+runtime registers      TDX RTMR[0..3], vTPM PCRs; verify against the event log
+transparency log       append-only log of approved measurements (for example, Sigstore Rekor)
+<span class="b">the check</span>              vendor chain valid AND policy OK AND nonce fresh AND measurement == rebuilt image</pre>
+  </div>
+</section>
+
+<footer>
+  <p>Independent explainer. Not affiliated with or endorsed by Meta. Muse and Muse Confidential VM details come from Meta's public posts: <a href="https://about.fb.com/news/2026/09/introducing-muse-personal-ai-agent/">Introducing Muse</a> and <a href="https://research.meta.ai/blog/security-and-safety-for-ai-agents-our-approach-with-muse">How We Built Safety Into Muse</a>. Meta hasn't published which TEE or measurements the Confidential VM will use, so the mechanics shown are how confidential-VM attestation works in general. Dialogue is illustrative, and measurement values are examples.</p>
+</footer>
+
+
+</article>
+</main>
+</body>
+</html>

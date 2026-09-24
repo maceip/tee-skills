@@ -1,0 +1,4 @@
+interface:
+  display_name: "Attestation Review"
+  short_description: "Review TEE claims, evidence, and verifier policy"
+  default_prompt: "Use $attestation-review to review this article's attestation claims and identify unsupported assumptions."
